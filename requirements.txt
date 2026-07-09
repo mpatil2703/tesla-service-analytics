@@ -1,0 +1,6 @@
+streamlit==1.59.1
+pandas==3.0.3
+plotly==6.9.0
+# Not imported directly in app.py, but pandas' Styler.background_gradient()
+# (used for the heatmap table) requires matplotlib under the hood.
+matplotlib==3.11.0
