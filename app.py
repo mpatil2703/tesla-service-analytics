@@ -10,6 +10,7 @@ the page (a chart, a table, a header) in the order it appears in the file.
 Run this with:  streamlit run app.py
 """
 
+import os
 import textwrap
 
 import pandas as pd
@@ -126,12 +127,23 @@ st.markdown(
 
 # --- Loading the data -------------------------------------------------------
 # @st.cache_data is a "decorator" -- a wrapper Streamlit provides that
-# remembers the result of this function the first time it runs. Since
+# remembers the result of this function the first time it runs, keyed off
+# the function's own code plus whatever arguments are passed in. Since
 # Streamlit re-runs the whole script on every click, without this the app
-# would re-read the CSV from disk on every single interaction. The cache
-# means it's only actually loaded once (or whenever the CSV file changes).
+# would re-read the CSV from disk on every single interaction.
+#
+# The catch: st.cache_data has NO idea that "service_appointments.csv" is a
+# file on disk that can change -- it only looks at load_data()'s code and
+# arguments to decide whether it's already seen this call before. If we
+# update the CSV's contents (new columns, new rows) without changing this
+# function's code, a cache entry warmed up on the OLD file can get served
+# right back out, even after deploying the new code and new CSV -- which is
+# exactly what caused a deployed KeyError: 'channel' after we added that
+# column. Passing the file's last-modified time in as an argument fixes
+# this: every time the CSV's contents change, its mtime changes too, which
+# changes the cache key, which forces a fresh read.
 @st.cache_data
-def load_data():
+def load_data(csv_mtime):
     df = pd.read_csv("service_appointments.csv")
     df["utilization_bucket"] = pd.cut(
         df["technician_utilization_pct"],
@@ -141,7 +153,7 @@ def load_data():
     return df
 
 
-df = load_data()
+df = load_data(os.path.getmtime("service_appointments.csv"))
 
 st.title("Tesla Service Operations Dashboard")
 
