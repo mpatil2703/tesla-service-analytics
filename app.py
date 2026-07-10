@@ -153,12 +153,16 @@ st.sidebar.header("Filters")
 
 all_centers = sorted(df["service_center"].unique())
 all_types = sorted(df["appointment_type"].unique())
+all_channels = sorted(df["channel"].unique())
 
 selected_centers = st.sidebar.multiselect(
     "Service center", options=all_centers, default=all_centers
 )
 selected_types = st.sidebar.multiselect(
     "Appointment type", options=all_types, default=all_types
+)
+selected_channels = st.sidebar.multiselect(
+    "Channel", options=all_channels, default=all_channels
 )
 
 # Every time a filter changes, Streamlit re-runs the script and this line
@@ -167,6 +171,7 @@ selected_types = st.sidebar.multiselect(
 filtered = df[
     df["service_center"].isin(selected_centers)
     & df["appointment_type"].isin(selected_types)
+    & df["channel"].isin(selected_channels)
 ].copy()
 
 if filtered.empty:

@@ -21,37 +21,61 @@ N = 5000
 
 # --- 1. Static reference lists -------------------------------------------
 # These are the categories we'll randomly assign to each appointment.
+# These 6 cities were chosen because they correspond to real Tesla service
+# center markets -- the city names are realistic, but which specific
+# appointments happen there and when is entirely simulated.
 service_centers = [
     "Fremont, CA",
     "Austin, TX",
     "Chicago, IL",
     "Seattle, WA",
     "Denver, CO",
-    "Toronto, Canada",
+    "Toronto, ON",
 ]
 
+# Real Tesla customer-facing service categories. Two categories that might
+# seem like an obvious fit were deliberately left OUT:
+#   - "Software Update" -- Tesla ships software updates over-the-air (OTA)
+#     directly to the car, not as something a customer books an appointment
+#     for, so it doesn't belong in a list of bookable appointment types.
+#   - "Diagnostic Check" -- diagnostics happen as an internal backend
+#     pre-triage step (deciding what a car actually needs) rather than a
+#     category a customer selects when booking, so it isn't customer-facing.
 appointment_types = [
-    "Routine Maintenance",
-    "Software Update",
-    "Battery Service",
-    "Tire Replacement",
-    "Body Repair",
+    "Tire Rotation",
+    "Brake Fluid/Caliper Service",
+    "Cabin/HEPA Filter Replacement",
+    "12V Battery Service",
     "Warranty Repair",
-    "Diagnostic Check",
+    "Collision Repair",
+    "Alignment",
 ]
+
+# A Tesla appointment is booked through one of three channels. These
+# weights (roughly 58% / 37% / 5%) are an ESTIMATE for this portfolio
+# project based on general knowledge of how Tesla's service network is
+# structured (most work funnels through fixed service centers, mobile vans
+# handle a large minority of lighter jobs, and body-shop-style collision
+# work is comparatively rare) -- they are not a published Tesla statistic.
+channels = ["Service Center", "Mobile Service", "Collision Center"]
+channel_weights = [0.58, 0.37, 0.05]
 
 # --- 2. Random categorical columns ----------------------------------------
 # np.random.choice picks randomly (with replacement) from a list, N times.
-# This gives us one service center and one appointment type per row.
+# This gives us one service center, appointment type, and channel per row.
+# Passing p= gives channel its weighted (not equal-chance) probabilities.
 service_center = np.random.choice(service_centers, size=N)
 appointment_type = np.random.choice(appointment_types, size=N)
+channel = np.random.choice(channels, size=N, p=channel_weights)
 
 # --- 3. Random dates --------------------------------------------------------
 # pd.Timestamp.today() is "right now" as a pandas date object.
-# We build a pool of the last 365 days, then randomly pick N of them
-# (with replacement, since many appointments can share a date).
+# We build a pool of the last 90 days, then randomly pick N of them (with
+# replacement, since many appointments can share a date). 90 days is an
+# ASSUMED window for this portfolio project -- not a real Tesla reporting
+# period -- chosen to look like a plausible "last quarter" service log.
 today = pd.Timestamp.today().normalize()  # normalize() strips the time-of-day
-date_pool = pd.date_range(end=today, periods=365, freq="D")
+date_pool = pd.date_range(end=today, periods=90, freq="D")
 scheduled_date = np.random.choice(date_pool, size=N)
 
 # --- 4. Technician utilization ----------------------------------------------
@@ -117,6 +141,7 @@ outcome_status = np.select(conditions, choices, default="Completed")
 df = pd.DataFrame({
     "service_center": service_center,
     "appointment_type": appointment_type,
+    "channel": channel,
     "scheduled_date": pd.to_datetime(scheduled_date).date,
     "technician_utilization_pct": technician_utilization,
     "outcome_status": outcome_status,
