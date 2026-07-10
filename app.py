@@ -384,6 +384,81 @@ st.markdown(
 )
 
 
+# --- Charts 1b/1c: appointment mix and cancellation rate by channel --------
+# Two views of the same new "channel" column, placed side by side with
+# st.columns(2) so they read as a pair: how appointments SPLIT across
+# channels on the left, how each channel PERFORMS on the right.
+by_channel_dist = (
+    filtered.groupby("channel").agg(count=("channel", "size")).reset_index()
+)
+by_channel_dist["pct"] = (by_channel_dist["count"] / by_channel_dist["count"].sum() * 100).round(1)
+by_channel_dist = by_channel_dist.sort_values("count", ascending=False)
+# A single combined label ("2,988 (59.8%)") since texttemplate can only
+# format one field at a time -- building the string ourselves lets the
+# label show both the raw count and its share in one line.
+by_channel_dist["label"] = (
+    by_channel_dist["count"].map("{:,}".format) + " (" + by_channel_dist["pct"].astype(str) + "%)"
+)
+
+fig_channel_dist = px.bar(by_channel_dist, x="channel", y="count", text="label")
+fig_channel_dist.update_traces(
+    marker_color=BLUE,
+    marker_line_width=0,
+    textposition="outside",
+    customdata=by_channel_dist[["pct"]],
+    hovertemplate="<b>%{x}</b><br>Appointments: %{y:,}<br>Share: %{customdata[0]:.1f}%<extra></extra>",
+)
+fig_channel_dist.update_layout(bargap=0.4)
+fig_channel_dist = style_chart(fig_channel_dist, "Appointments")
+
+by_channel_rate = (
+    filtered.groupby("channel")
+    .agg(cancellation_rate_pct=("is_cancelled", "mean"), n=("is_cancelled", "size"))
+    .reset_index()
+)
+by_channel_rate["cancellation_rate_pct"] = (by_channel_rate["cancellation_rate_pct"] * 100).round(1)
+by_channel_rate = by_channel_rate.sort_values("cancellation_rate_pct", ascending=False)
+
+worst_channel_idx = by_channel_rate["cancellation_rate_pct"].idxmax()
+channel_colors = [CRITICAL if i == worst_channel_idx else BLUE for i in by_channel_rate.index]
+
+fig_channel_rate = px.bar(by_channel_rate, x="channel", y="cancellation_rate_pct", text="cancellation_rate_pct")
+fig_channel_rate.update_traces(
+    marker_color=channel_colors,
+    marker_line_width=0,
+    texttemplate="%{text:.1f}%",
+    textposition="outside",
+    customdata=by_channel_rate[["n"]],
+    hovertemplate="<b>%{x}</b><br>Cancellation rate: %{y:.1f}%<br>Appointments: %{customdata[0]:,}<extra></extra>",
+)
+fig_channel_rate.update_layout(bargap=0.4)
+fig_channel_rate = style_chart(fig_channel_rate, "Cancellation rate (%)")
+
+col_dist, col_rate = st.columns(2)
+
+with col_dist:
+    st.subheader("Appointment Mix by Channel")
+    st.caption("How the overall workload splits across the three booking channels.")
+    st.plotly_chart(fig_channel_dist, use_container_width=True)
+    st.markdown(
+        '<span class="chart-caption">Hover any bar for the exact count and share of total appointments.</span>',
+        unsafe_allow_html=True,
+    )
+
+with col_rate:
+    st.subheader("Cancellation Rate by Channel")
+    st.caption("Which booking channel cancels most often, same comparison as the chart above.")
+    st.plotly_chart(fig_channel_rate, use_container_width=True)
+    st.markdown(
+        '<span class="chart-caption">Red bar marks the highest cancellation rate. Collision Center has a much '
+        'smaller sample (~200 appointments) than the other two channels, so weigh its rate with a bit more '
+        'caution. Hover any bar for the exact rate and appointment count.</span>',
+        unsafe_allow_html=True,
+    )
+
+st.divider()
+
+
 # --- Chart 2: cancellation rate by utilization bucket -----------------------
 by_bucket = (
     filtered.groupby("utilization_bucket", observed=True)
