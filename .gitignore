@@ -9,5 +9,7 @@ streamlit_log.txt
 __pycache__/
 *.pyc
 
-# Streamlit's local (non-secret) runtime config, if it ever gets created here.
-.streamlit/
+# config.toml (toolbar/theme settings) IS tracked -- Streamlit Cloud reads it
+# straight from the repo. Only secrets.toml (API keys, credentials) is
+# ignored, since that file should never be committed.
+.streamlit/secrets.toml
