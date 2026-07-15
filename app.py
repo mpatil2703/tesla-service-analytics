@@ -18,32 +18,93 @@ import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 
-# --- Design tokens (colors) -------------------------------------------------
-# One blue hue carries every "just a measurement" bar/line in this dashboard
-# (categorical slot 1 from the project's data-viz palette). Status colors
-# (good/warning/critical) are a SEPARATE, reserved set -- used only to signal
-# severity (a KPI card, the worst bar, the worst table cell), never recycled
-# as "just another series color". Keeping the two systems separate is what
-# makes the red pop mean something instead of becoming visual noise.
-BLUE = "#2a78d6"
-GOOD = "#0ca30c"
-WARNING = "#fab219"
-CRITICAL = "#d03b3b"
-
-SURFACE = "#fcfcfb"
-GRID = "#e1e0d9"
-INK = "#0b0b0b"
-INK_SECONDARY = "#52514e"
-INK_MUTED = "#898781"
-
-MIN_CELL_N = 30  # minimum appointments before we trust a (type, bucket) cell
-MIN_BUCKET_N = 100  # minimum appointments before we trust an overall bucket rate
-
 # --- Page setup -----------------------------------------------------------
 # st.set_page_config must be the first Streamlit command in the script.
 # It sets the browser tab title and switches the page to a wide layout
 # (instead of a narrow centered column), which gives charts more room.
 st.set_page_config(page_title="Tesla Service Operations Dashboard", layout="wide")
+
+MIN_CELL_N = 30  # minimum appointments before we trust a (type, bucket) cell
+MIN_BUCKET_N = 100  # minimum appointments before we trust an overall bucket rate
+
+# --- Design tokens (colors) -------------------------------------------------
+# Every custom-styled element in this dashboard (KPI cards, hero metric,
+# charts, footer, ...) is built from these tokens instead of one-off hex
+# codes, so the whole page can flip between Streamlit's light and dark
+# themes by changing values in ONE place rather than hunting through CSS.
+#
+# st.context.theme.type reports which theme is ACTUALLY active for this
+# viewer right now ("light" or "dark") -- this is the real, current
+# Streamlit theme, not just the OS/browser's prefers-color-scheme, so it
+# stays correct even if someone picks a theme from Streamlit's own settings
+# menu that differs from their system setting. Per Streamlit's docs it can
+# briefly be None on the very first render of a session; we default to
+# "light" in that split second, and it corrects itself on the next rerun
+# (e.g. the moment someone touches a sidebar filter).
+DARK_MODE = st.context.theme.type == "dark"
+
+
+def _rgba(hex_color, alpha):
+    """Turn a '#rrggbb' token into an 'rgba(r, g, b, alpha)' string, so every
+    translucent wash/border below is derived from the SAME hex tokens used
+    for solid fills -- no separate, easy-to-forget rgba literals that could
+    drift out of sync with the token they're supposed to be a tint of."""
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+# Tesla brand palette: a neutral carries every "just a measurement" bar/line
+# in this dashboard (categorical slot 1 from the project's data-viz palette),
+# and Tesla's own brand red is reserved for emphasis/brand chrome (the hero
+# metric, the "View Code" button, the worst bar, the worst table cell).
+# Status colors (good/warning/critical) are a SEPARATE, reserved set -- used
+# only to signal severity, never recycled as "just another series color".
+# Keeping the two systems separate is what makes the red pop mean something
+# instead of becoming visual noise. Each token has a light- and dark-theme
+# value -- e.g. ACCENT is near-black on a light page but flips to a light
+# neutral in dark mode, because near-black bars on a near-black dark-mode
+# chart background would simply disappear.
+if DARK_MODE:
+    ACCENT = "#c9cbd1"
+    GOOD = "#3ddc84"
+    WARNING = "#ffc247"
+    CRITICAL = "#ff4b4f"  # brighter than the light-mode red for AA contrast on a dark card
+    SURFACE = "#262730"  # Streamlit's own dark-theme "card" background
+    GRID = "#41424c"
+    INK = "#fafafa"
+    INK_SECONDARY = "#c7c8cc"
+    INK_MUTED = "#93959c"
+else:
+    ACCENT = "#171a20"
+    GOOD = "#0ca30c"
+    WARNING = "#fab219"
+    CRITICAL = "#e82127"
+    SURFACE = "#fcfcfb"
+    GRID = "#e1e0d9"
+    INK = "#0b0b0b"
+    INK_SECONDARY = "#52514e"
+    INK_MUTED = "#898781"
+
+# Derived tokens -- translucent washes/borders computed FROM the base
+# palette above (via _rgba) so they automatically stay correct for whichever
+# theme is active, plus a couple of standalone light/dark pairs for the one
+# element (the disclaimer) that intentionally keeps its own amber identity
+# in both themes rather than adopting the red/black brand accent.
+CARD_BORDER = _rgba(INK, 0.08)
+CARD_SHADOW = _rgba(INK, 0.08)
+GOOD_WASH = _rgba(GOOD, 0.05)
+WARNING_WASH = _rgba(WARNING, 0.08)
+CRITICAL_WASH = _rgba(CRITICAL, 0.05)
+LINK_HOVER_WASH = _rgba(CRITICAL, 0.08)
+HERO_TINT_STRONG = _rgba(CRITICAL, 0.12 if DARK_MODE else 0.07)
+HERO_TINT_FAINT = _rgba(CRITICAL, 0.02)
+HERO_BORDER = _rgba(CRITICAL, 0.3 if DARK_MODE else 0.25)
+TREND_FILL = _rgba(ACCENT, 0.10)
+DANGER_ZONE_FILL = _rgba(CRITICAL, 0.08)
+DISCLAIMER_BG = "#3a2f10" if DARK_MODE else "#fff8e1"
+DISCLAIMER_BORDER = "#6b5518" if DARK_MODE else "#f0d078"
+DISCLAIMER_TEXT = "#f5d67b" if DARK_MODE else "#6b5900"
 
 # --- Global styling ----------------------------------------------------
 # Streamlit renders st.title as an <h1> and st.subheader as an <h3> under
@@ -68,25 +129,6 @@ st.markdown(
     }}
     hr {{ margin: 1.6rem 0 !important; }}
 
-    .callout-box {{
-        background: rgba(42, 120, 214, 0.06);
-        border: 1px solid rgba(42, 120, 214, 0.18);
-        border-left: 4px solid {BLUE};
-        border-radius: 8px;
-        padding: 14px 18px;
-        margin: 0.3rem 0 1.6rem 0;
-        font-size: 15px;
-        color: {INK};
-    }}
-    .callout-label {{
-        font-weight: 700;
-        color: {BLUE};
-        margin-right: 8px;
-        text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 0.05em;
-    }}
-
     .kpi-row {{
         display: flex;
         gap: 16px;
@@ -97,15 +139,21 @@ st.markdown(
         flex: 1;
         min-width: 200px;
         background: {SURFACE};
-        border: 1px solid rgba(11, 11, 11, 0.08);
-        border-left: 4px solid {BLUE};
+        border: 1px solid {CARD_BORDER};
+        border-left: 4px solid {ACCENT};
         border-radius: 10px;
         padding: 16px 18px;
-        box-shadow: 0 1px 4px rgba(11, 11, 11, 0.07);
+        box-shadow: 0 1px 4px {CARD_SHADOW};
     }}
-    .kpi-good {{ border-left-color: {GOOD}; background: rgba(12, 163, 12, 0.05); }}
-    .kpi-warning {{ border-left-color: {WARNING}; background: rgba(250, 178, 25, 0.08); }}
-    .kpi-critical {{ border-left-color: {CRITICAL}; background: rgba(208, 59, 59, 0.05); }}
+    /* The wash below is layered OVER {SURFACE} (not just the translucent
+       wash alone) -- a status card's background rule replaces .kpi-card's
+       background rather than adding to it (same CSS specificity, later
+       rule wins), so without an opaque base here a status card would show
+       the PAGE's background through the tint instead of the card surface,
+       looking inconsistent with the plain (non-status) cards next to it. */
+    .kpi-good {{ border-left-color: {GOOD}; background: linear-gradient({GOOD_WASH}, {GOOD_WASH}), {SURFACE}; }}
+    .kpi-warning {{ border-left-color: {WARNING}; background: linear-gradient({WARNING_WASH}, {WARNING_WASH}), {SURFACE}; }}
+    .kpi-critical {{ border-left-color: {CRITICAL}; background: linear-gradient({CRITICAL_WASH}, {CRITICAL_WASH}), {SURFACE}; }}
 
     .kpi-icon {{ font-size: 22px; margin-bottom: 6px; }}
     .kpi-label {{ font-size: 13px; font-weight: 600; color: {INK_SECONDARY}; margin-bottom: 2px; }}
@@ -119,6 +167,82 @@ st.markdown(
     .kpi-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
 
     .chart-caption {{ color: {INK_MUTED}; font-size: 13px; }}
+
+    .disclaimer-banner {{
+        background: {DISCLAIMER_BG};
+        border: 1px solid {DISCLAIMER_BORDER};
+        border-radius: 8px;
+        padding: 10px 16px;
+        margin: 0 0 1.1rem 0;
+        font-size: 13.5px;
+        color: {DISCLAIMER_TEXT};
+        text-align: center;
+    }}
+
+    .project-summary {{
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: {INK_SECONDARY};
+        max-width: 900px;
+        margin: 0.2rem 0 1.3rem 0;
+    }}
+
+    .github-link-btn {{
+        display: inline-block;
+        font-size: 13.5px;
+        font-weight: 600;
+        color: {CRITICAL};
+        text-decoration: none;
+        border: 1px solid {CRITICAL};
+        border-radius: 6px;
+        padding: 6px 14px;
+        margin-bottom: 1.2rem;
+    }}
+    .github-link-btn:hover {{ background: {LINK_HOVER_WASH}; }}
+
+    .hero-metric {{
+        background: linear-gradient(135deg, {HERO_TINT_STRONG}, {HERO_TINT_FAINT}), {SURFACE};
+        border: 1px solid {HERO_BORDER};
+        border-left: 6px solid {CRITICAL};
+        border-radius: 12px;
+        padding: 22px 26px;
+        margin: 0.3rem 0 1.4rem 0;
+    }}
+    .hero-metric-label {{
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: {CRITICAL};
+        margin-bottom: 8px;
+    }}
+    .hero-metric-value {{
+        font-size: clamp(1.35rem, 3.6vw, 2.1rem);
+        font-weight: 800;
+        color: {INK};
+        line-height: 1.3;
+    }}
+    .hero-metric-sub {{
+        font-size: 14px;
+        color: {INK_SECONDARY};
+        margin-top: 10px;
+    }}
+
+    .insights-box {{
+        font-size: 15px;
+        line-height: 1.9;
+        color: {INK};
+    }}
+    .insights-box b {{ color: {INK}; }}
+
+    .site-footer {{
+        margin-top: 2.5rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid {GRID};
+        color: {INK_MUTED};
+        font-size: 13px;
+        text-align: center;
+    }}
     </style>
     """).strip(),
     unsafe_allow_html=True,
@@ -155,7 +279,33 @@ def load_data(csv_mtime):
 
 df = load_data(os.path.getmtime("service_appointments.csv"))
 
+# --- Disclaimer banner --------------------------------------------------
+# Sits above everything else on the page, including the title, so a viewer
+# can't miss it before looking at a single number.
+st.markdown(
+    '<div class="disclaimer-banner">⚠️ This project uses SIMULATED data for '
+    'portfolio purposes only. Not affiliated with or endorsed by Tesla, Inc.</div>',
+    unsafe_allow_html=True,
+)
+
 st.title("Tesla Service Operations Dashboard")
+
+st.markdown(
+    '<a class="github-link-btn" href="https://github.com/mpatil2703/tesla-service-analytics" '
+    'target="_blank" rel="noopener noreferrer">View Code →</a>',
+    unsafe_allow_html=True,
+)
+
+# --- Project summary ------------------------------------------------------
+st.markdown(
+    '<p class="project-summary">This dashboard analyzes a simulated Tesla-style vehicle '
+    'service operation to find out what drives appointment cancellations. It was built to '
+    'apply an aeronautical engineering background — reliability analysis, root-cause thinking, '
+    'and operational risk — to a real-world service operations problem. The top finding: '
+    'cancellation rate climbs sharply as technician utilization rises, meaning busier service '
+    'centers are measurably more likely to lose an appointment.</p>',
+    unsafe_allow_html=True,
+)
 
 # --- Sidebar filters ---------------------------------------------------
 # st.sidebar puts a widget in the collapsible left-hand panel instead of
@@ -245,23 +395,33 @@ high_rate = overall_by_bucket[high_bucket]
 rises_with_workload = high_rate > low_rate
 
 
-# --- "Key Insight" callout -------------------------------------------------
-# One sentence, built from the numbers above rather than typed out by hand,
-# so it can never drift out of sync with the data or the sidebar filters.
+# --- Hero metric ------------------------------------------------------
+# The single headline finding, built from the numbers above (never typed
+# out by hand) so it can't drift out of sync with the data or the sidebar
+# filters. This is the first big, styled visual a viewer sees on the page —
+# everything else (KPI cards, charts) supports this one number.
 if rises_with_workload:
-    insight = (
-        f"Cancellations rise from {low_rate:.0f}% to {high_rate:.0f}% as technician "
-        f"workload increases, with {max_type} appointments most affected."
+    hero_value = (
+        f"Cancellation rate rises {low_rate:.1f}% → {high_rate:.1f}% "
+        f"as technician utilization increases"
+    )
+    hero_sub = (
+        f"{max_type} appointments are hit hardest, peaking at {max_rate:.1f}% "
+        f"cancellations once utilization reaches {max_bucket}%."
     )
 else:
-    insight = (
-        f"Cancellation rate varies by technician workload — {max_type} at "
-        f"{max_bucket}% workload is the single highest-risk combination "
-        f"({max_rate:.1f}%)."
+    hero_value = (
+        f"{max_type} at {max_bucket}% utilization is the highest-risk combination "
+        f"in the data ({max_rate:.1f}%)"
     )
+    hero_sub = "Cancellation rate does not rise uniformly with utilization in the current filter selection."
 
 st.markdown(
-    f'<div class="callout-box"><span class="callout-label">Key Insight</span>{insight}</div>',
+    f'<div class="hero-metric">'
+    f'<div class="hero-metric-label">Key Finding</div>'
+    f'<div class="hero-metric-value">{hero_value}</div>'
+    f'<div class="hero-metric-sub">{hero_sub}</div>'
+    f'</div>',
     unsafe_allow_html=True,
 )
 
@@ -353,13 +513,13 @@ by_center = (
 by_center["cancellation_rate_pct"] = (by_center["cancellation_rate_pct"] * 100).round(1)
 by_center = by_center.sort_values("cancellation_rate_pct", ascending=False)
 
-# Emphasis coloring: every bar stays the base blue EXCEPT the single worst
-# one, which is drawn in the same critical red used everywhere else in the
-# dashboard to mean "this is the outlier" -- so the reader's eye lands on
-# the one bar that matters instead of scanning six similar-looking bars.
+# Emphasis coloring: every bar stays the base near-black EXCEPT the single
+# worst one, which is drawn in the same Tesla-red used everywhere else in
+# the dashboard to mean "this is the outlier" -- so the reader's eye lands
+# on the one bar that matters instead of scanning six similar-looking bars.
 worst_idx = by_center["cancellation_rate_pct"].idxmax()
 center_colors = [
-    CRITICAL if i == worst_idx else BLUE for i in by_center.index
+    CRITICAL if i == worst_idx else ACCENT for i in by_center.index
 ]
 
 fig_center = px.bar(
@@ -402,7 +562,7 @@ by_channel_dist["label"] = (
 
 fig_channel_dist = px.bar(by_channel_dist, x="channel", y="count", text="label")
 fig_channel_dist.update_traces(
-    marker_color=BLUE,
+    marker_color=ACCENT,
     marker_line_width=0,
     textposition="outside",
     customdata=by_channel_dist[["pct"]],
@@ -420,7 +580,7 @@ by_channel_rate["cancellation_rate_pct"] = (by_channel_rate["cancellation_rate_p
 by_channel_rate = by_channel_rate.sort_values("cancellation_rate_pct", ascending=False)
 
 worst_channel_idx = by_channel_rate["cancellation_rate_pct"].idxmax()
-channel_colors = [CRITICAL if i == worst_channel_idx else BLUE for i in by_channel_rate.index]
+channel_colors = [CRITICAL if i == worst_channel_idx else ACCENT for i in by_channel_rate.index]
 
 fig_channel_rate = px.bar(by_channel_rate, x="channel", y="cancellation_rate_pct", text="cancellation_rate_pct")
 fig_channel_rate.update_traces(
@@ -468,7 +628,7 @@ by_bucket = (
 by_bucket["cancellation_rate_pct"] = (by_bucket["cancellation_rate_pct"] * 100).round(1)
 
 worst_bucket_idx = by_bucket["cancellation_rate_pct"].idxmax()
-bucket_colors = [CRITICAL if i == worst_bucket_idx else BLUE for i in by_bucket.index]
+bucket_colors = [CRITICAL if i == worst_bucket_idx else ACCENT for i in by_bucket.index]
 
 fig_bucket = px.bar(
     by_bucket, x="utilization_bucket", y="cancellation_rate_pct", text="cancellation_rate_pct",
@@ -527,7 +687,7 @@ if len(trend_agg) >= 2:
     # and markers sit on top of it, not the other way around.
     fig_trend.add_vrect(
         x0=80, x1=100,
-        fillcolor="rgba(208, 59, 59, 0.08)", line_width=0, layer="below",
+        fillcolor=DANGER_ZONE_FILL, line_width=0, layer="below",
         annotation_text="High-risk zone (80-100%)", annotation_position="top left",
         annotation_font_size=11, annotation_font_color=INK_MUTED,
     )
@@ -540,9 +700,9 @@ if len(trend_agg) >= 2:
         x=trend_agg["midpoint"], y=trend_agg["rate"],
         mode="lines+markers+text",
         text=end_labels, textposition="top center",
-        line=dict(color=BLUE, width=2),
-        marker=dict(size=9, color=BLUE, line=dict(width=2, color=SURFACE)),
-        fill="tozeroy", fillcolor="rgba(42, 120, 214, 0.10)",
+        line=dict(color=ACCENT, width=2),
+        marker=dict(size=9, color=ACCENT, line=dict(width=2, color=SURFACE)),
+        fill="tozeroy", fillcolor=TREND_FILL,
         customdata=trend_agg[["n", "label"]].values,
         hovertemplate="<b>Utilization %{customdata[1]}</b><br>Cancellation rate: %{y:.1f}%<br>Appointments: %{customdata[0]:,}<extra></extra>",
     ))
@@ -600,7 +760,7 @@ tooltip_text.columns = new_columns
 max_bucket_col = (workload_label, f"{max_bucket}%")
 
 styled_pivot = (
-    pivot.style.background_gradient(cmap="Blues", vmin=0, vmax=max(pivot.values.max(), 1))
+    pivot.style.background_gradient(cmap="Reds", vmin=0, vmax=max(pivot.values.max(), 1))
     .format("{:.1f}%")
     # Overwrite just the single highest-risk cell's text with a small
     # warning-star prefix, so that cell's meaning never depends on color
@@ -618,17 +778,154 @@ styled_pivot = (
     .set_table_styles([
         {"selector": "th, td", "props": "padding: 6px 10px; text-align: center; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;"},
         {"selector": "th", "props": "background-color: #f9f9f7; color: #52514e; font-weight: 600;"},
+        # This table is a deliberately theme-INDEPENDENT card: cell shading
+        # comes from a fixed white-to-red colormap (not from DARK_MODE), so
+        # td text needs its own explicit dark color -- without it, the text
+        # silently inherits Streamlit's ambient (theme-dependent) text
+        # color, which turns near-white in dark mode and disappears against
+        # the near-white low-cancellation-rate cells at the pale end of the
+        # gradient.
+        {"selector": "td", "props": "color: #0b0b0b;"},
         {"selector": "table", "props": "border-collapse: collapse;"},
     ])
 )
 
 # st.dataframe's Styler support doesn't reliably render custom CSS like
 # borders or tooltips, so we render the Styler's own HTML directly instead
-# -- this keeps the highlight border and hover tooltips intact.
-st.markdown(styled_pivot.to_html(), unsafe_allow_html=True)
+# -- this keeps the highlight border and hover tooltips intact. Wrapped in
+# a div that (a) scrolls horizontally instead of dragging the whole page
+# sideways on a phone (this table, with its multi-index header and 7
+# appointment types, is wider than a phone screen), and (b) paints its own
+# light background, since the table's colors are fixed regardless of theme
+# -- without an explicit light background here, this card would sit
+# directly on a dark page background in dark mode with no boundary of its
+# own.
+st.markdown(
+    f'<div style="overflow-x: auto; background: #fcfcfb; border-radius: 8px; padding: 8px;">'
+    f'{styled_pivot.to_html()}</div>',
+    unsafe_allow_html=True,
+)
 
 st.markdown(
-    '<span class="chart-caption">Darker blue = higher cancellation rate. The red-bordered ⚠ cell marks the '
+    '<span class="chart-caption">Darker red = higher cancellation rate. The red-bordered ⚠ cell marks the '
     'single highest-risk combination. Hover any cell for its exact rate and appointment count.</span>',
+    unsafe_allow_html=True,
+)
+
+st.divider()
+
+
+# --- Key Insights section ---------------------------------------------
+# Plain-language takeaways built from the same numbers driving the hero
+# metric and charts above, so a non-technical reader can skim this section
+# alone and still walk away with the main findings.
+worst_channel_row = by_channel_rate.iloc[0]
+best_channel_row = by_channel_rate.iloc[-1]
+
+insight_bullets = []
+if rises_with_workload:
+    insight_bullets.append(
+        f"<b>Workload effect:</b> Cancellation rate climbs from {low_rate:.1f}% to {high_rate:.1f}% "
+        f"as technician utilization moves from the lowest to the highest workload band — busier "
+        f"periods measurably increase the chance an appointment falls through."
+    )
+else:
+    insight_bullets.append(
+        f"<b>Workload effect:</b> Cancellation rate varies with technician utilization, though not "
+        f"in a single consistent direction across every band in the current filter selection."
+    )
+insight_bullets.append(
+    f"<b>{max_type} risk:</b> {max_type} appointments are the single riskiest combination in the "
+    f"data, reaching a {max_rate:.1f}% cancellation rate once utilization hits {max_bucket}% — this "
+    f"appointment type may need extra scheduling buffer during busy periods."
+)
+insight_bullets.append(
+    f"<b>Channel effect:</b> {worst_channel_row['channel']} appointments cancel at "
+    f"{worst_channel_row['cancellation_rate_pct']:.1f}%, the highest of the three booking channels, "
+    f"versus {best_channel_row['cancellation_rate_pct']:.1f}% for {best_channel_row['channel']}."
+)
+insight_bullets.append(
+    f"<b>Bottom line:</b> With {cancellation_rate:.1f}% of all appointments cancelled overall, "
+    f"workload-aware scheduling — capping bookings once utilization crosses roughly 80% — is the "
+    f"most direct lever for cutting lost appointments."
+)
+
+st.subheader("Key Insights")
+st.markdown(
+    '<div class="insights-box"><ul><li>' + "</li><li>".join(insight_bullets) + "</li></ul></div>",
+    unsafe_allow_html=True,
+)
+
+
+# --- Methodology section -------------------------------------------------
+st.subheader("Methodology")
+st.markdown(
+    "This dashboard runs on a **synthetic** dataset of about **5,000 simulated appointments** "
+    "generated with `numpy`/`pandas`, spread across an **assumed 90-day scheduling window** "
+    "(not a real Tesla reporting period).\n\n"
+    "The service center markets (6 real Tesla service-center cities), booking channels "
+    "(Service Center / Mobile Service / Collision Center), and appointment categories "
+    "(Tire Rotation, Brake Fluid/Caliper Service, Alignment, Warranty Repair, etc.) are modeled "
+    "on real, publicly known aspects of Tesla's service network. Which specific appointments "
+    "happened, on which day, at which center, and with what outcome is entirely simulated.\n\n"
+    "Critically, the relationship this dashboard analyzes — cancellation likelihood rising with "
+    "technician utilization — was **intentionally built into the simulation itself** (cancellation "
+    "probability is generated as a function of utilization). The project's purpose is to practice "
+    "detecting, quantifying, and visualizing that kind of operational risk pattern with SQL, pandas, "
+    "and Plotly — **this is not real Tesla data and does not reflect Tesla's actual operations, "
+    "technician performance, or scheduling behavior.**"
+)
+
+
+# --- SQL Queries section ---------------------------------------------------
+# Real queries pulled from this project's analysis scripts (load_to_sqlite.py
+# and utilization_bucket_query.py), run against a SQLite copy of the same
+# dataset (service_ops.db) -- shown here to demonstrate the SQL work behind
+# the pandas/Plotly charts above.
+st.subheader("SQL Queries")
+st.caption("A couple of the actual SQL queries used in this analysis, run against a SQLite copy of the dataset.")
+
+with st.expander("Show SQL queries"):
+    st.markdown("**Cancellation rate by service center**")
+    st.code(
+        textwrap.dedent("""\
+            SELECT
+                service_center,
+                ROUND(AVG(CASE WHEN outcome_status = 'Cancelled' THEN 1 ELSE 0 END) * 100.0, 1)
+                    AS cancellation_rate_pct
+            FROM appointments
+            GROUP BY service_center
+            ORDER BY cancellation_rate_pct DESC;
+        """),
+        language="sql",
+    )
+
+    st.markdown("**Cancellation rate by technician utilization bucket**")
+    st.code(
+        textwrap.dedent("""\
+            SELECT
+                CASE
+                    WHEN technician_utilization_pct < 40 THEN '0-40'
+                    WHEN technician_utilization_pct < 60 THEN '40-60'
+                    WHEN technician_utilization_pct < 80 THEN '60-80'
+                    ELSE '80-100'
+                END AS utilization_bucket,
+                ROUND(AVG(CASE WHEN outcome_status = 'Cancelled' THEN 1 ELSE 0 END) * 100.0, 1)
+                    AS cancellation_rate_pct,
+                COUNT(*) AS num_appointments
+            FROM appointments
+            GROUP BY utilization_bucket
+            ORDER BY utilization_bucket ASC;
+        """),
+        language="sql",
+    )
+
+
+# --- Footer -----------------------------------------------------------
+# The portfolio link is a placeholder -- swap the href below for the real
+# URL once it exists; until then it's shown as plain (non-clickable) text
+# so it doesn't look like a dead link.
+st.markdown(
+    '<div class="site-footer">Built by Madhushree Patil &nbsp;·&nbsp; [portfolio link]</div>',
     unsafe_allow_html=True,
 )
