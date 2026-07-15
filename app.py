@@ -57,7 +57,7 @@ def _rgba(hex_color, alpha):
 # Tesla brand palette: a neutral carries every "just a measurement" bar/line
 # in this dashboard (categorical slot 1 from the project's data-viz palette),
 # and Tesla's own brand red is reserved for emphasis/brand chrome (the hero
-# metric, the "View Code" button, the worst bar, the worst table cell).
+# metric, the worst bar, the worst table cell).
 # Status colors (good/warning/critical) are a SEPARATE, reserved set -- used
 # only to signal severity, never recycled as "just another series color".
 # Keeping the two systems separate is what makes the red pop mean something
@@ -96,7 +96,6 @@ CARD_SHADOW = _rgba(INK, 0.08)
 GOOD_WASH = _rgba(GOOD, 0.05)
 WARNING_WASH = _rgba(WARNING, 0.08)
 CRITICAL_WASH = _rgba(CRITICAL, 0.05)
-LINK_HOVER_WASH = _rgba(CRITICAL, 0.08)
 HERO_TINT_STRONG = _rgba(CRITICAL, 0.12 if DARK_MODE else 0.07)
 HERO_TINT_FAINT = _rgba(CRITICAL, 0.02)
 HERO_BORDER = _rgba(CRITICAL, 0.3 if DARK_MODE else 0.25)
@@ -187,19 +186,6 @@ st.markdown(
         margin: 0.2rem 0 1.3rem 0;
     }}
 
-    .github-link-btn {{
-        display: inline-block;
-        font-size: 13.5px;
-        font-weight: 600;
-        color: {CRITICAL};
-        text-decoration: none;
-        border: 1px solid {CRITICAL};
-        border-radius: 6px;
-        padding: 6px 14px;
-        margin-bottom: 1.2rem;
-    }}
-    .github-link-btn:hover {{ background: {LINK_HOVER_WASH}; }}
-
     .hero-metric {{
         background: linear-gradient(135deg, {HERO_TINT_STRONG}, {HERO_TINT_FAINT}), {SURFACE};
         border: 1px solid {HERO_BORDER};
@@ -289,12 +275,6 @@ st.markdown(
 )
 
 st.title("Tesla Service Operations Dashboard")
-
-st.markdown(
-    '<a class="github-link-btn" href="https://github.com/mpatil2703/tesla-service-analytics" '
-    'target="_blank" rel="noopener noreferrer">View Code →</a>',
-    unsafe_allow_html=True,
-)
 
 # --- Project summary ------------------------------------------------------
 st.markdown(
@@ -778,17 +758,21 @@ styled_pivot = (
     .set_table_styles([
         {"selector": "th, td", "props": "padding: 6px 10px; text-align: center; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;"},
         {"selector": "th", "props": "background-color: #f9f9f7; color: #52514e; font-weight: 600;"},
-        # This table is a deliberately theme-INDEPENDENT card: cell shading
-        # comes from a fixed white-to-red colormap (not from DARK_MODE), so
-        # td text needs its own explicit dark color -- without it, the text
-        # silently inherits Streamlit's ambient (theme-dependent) text
-        # color, which turns near-white in dark mode and disappears against
-        # the near-white low-cancellation-rate cells at the pale end of the
-        # gradient.
-        {"selector": "td", "props": "color: #0b0b0b;"},
         {"selector": "table", "props": "border-collapse: collapse;"},
     ])
 )
+# NOTE: deliberately no blanket "td { color: ... }" rule here.
+# background_gradient() above already gives every cell its OWN explicit
+# per-cell text color (black on pale cells, near-white on the darkest red
+# cells) via text_color_threshold -- it targets each cell's ID selector
+# directly (e.g. "#T_xxx_row1_col3"), which is self-contained and doesn't
+# depend on the surrounding theme at all. A blanket "td" rule here would
+# look like it only affects a fallback, but a bare-tag "td" selector is
+# actually MORE specific than pandas' own per-cell ID selector once you
+# count selector parts (id+tag beats id alone), so it would silently
+# override every cell's carefully-computed contrast color with one fixed
+# color -- which is exactly the bug that made text on the darkest red
+# cells (e.g. the highlighted Alignment/80-100% cell) unreadable.
 
 # st.dataframe's Styler support doesn't reliably render custom CSS like
 # borders or tooltips, so we render the Styler's own HTML directly instead
@@ -875,50 +859,6 @@ st.markdown(
     "and Plotly — **this is not real Tesla data and does not reflect Tesla's actual operations, "
     "technician performance, or scheduling behavior.**"
 )
-
-
-# --- SQL Queries section ---------------------------------------------------
-# Real queries pulled from this project's analysis scripts (load_to_sqlite.py
-# and utilization_bucket_query.py), run against a SQLite copy of the same
-# dataset (service_ops.db) -- shown here to demonstrate the SQL work behind
-# the pandas/Plotly charts above.
-st.subheader("SQL Queries")
-st.caption("A couple of the actual SQL queries used in this analysis, run against a SQLite copy of the dataset.")
-
-with st.expander("Show SQL queries"):
-    st.markdown("**Cancellation rate by service center**")
-    st.code(
-        textwrap.dedent("""\
-            SELECT
-                service_center,
-                ROUND(AVG(CASE WHEN outcome_status = 'Cancelled' THEN 1 ELSE 0 END) * 100.0, 1)
-                    AS cancellation_rate_pct
-            FROM appointments
-            GROUP BY service_center
-            ORDER BY cancellation_rate_pct DESC;
-        """),
-        language="sql",
-    )
-
-    st.markdown("**Cancellation rate by technician utilization bucket**")
-    st.code(
-        textwrap.dedent("""\
-            SELECT
-                CASE
-                    WHEN technician_utilization_pct < 40 THEN '0-40'
-                    WHEN technician_utilization_pct < 60 THEN '40-60'
-                    WHEN technician_utilization_pct < 80 THEN '60-80'
-                    ELSE '80-100'
-                END AS utilization_bucket,
-                ROUND(AVG(CASE WHEN outcome_status = 'Cancelled' THEN 1 ELSE 0 END) * 100.0, 1)
-                    AS cancellation_rate_pct,
-                COUNT(*) AS num_appointments
-            FROM appointments
-            GROUP BY utilization_bucket
-            ORDER BY utilization_bucket ASC;
-        """),
-        language="sql",
-    )
 
 
 # --- Footer -----------------------------------------------------------
