@@ -229,6 +229,8 @@ st.markdown(
         font-size: 13px;
         text-align: center;
     }}
+    .site-footer a {{ color: {CRITICAL}; font-weight: 600; text-decoration: none; }}
+    .site-footer a:hover {{ text-decoration: underline; }}
     </style>
     """).strip(),
     unsafe_allow_html=True,
@@ -280,8 +282,8 @@ st.title("Tesla Service Operations Dashboard")
 st.markdown(
     '<p class="project-summary">This dashboard analyzes a simulated Tesla-style vehicle '
     'service operation to find out what drives appointment cancellations. It was built to '
-    'apply an aeronautical engineering background — reliability analysis, root-cause thinking, '
-    'and operational risk — to a real-world service operations problem. The top finding: '
+    'apply an aeronautical engineering background (reliability analysis, root-cause thinking, '
+    'and operational risk) to a real-world service operations problem. The top finding: '
     'cancellation rate climbs sharply as technician utilization rises, meaning busier service '
     'centers are measurably more likely to lose an appointment.</p>',
     unsafe_allow_html=True,
@@ -698,7 +700,7 @@ if len(trend_agg) >= 2:
     st.subheader("Cancellation Rate Trend as Technician Workload Rises")
     st.plotly_chart(fig_trend, use_container_width=True)
     st.markdown(
-        f'<span class="chart-caption">Chart starts at 30% utilization — bands below that have too few '
+        f'<span class="chart-caption">Chart starts at 30% utilization, since bands below that have too few '
         f'appointments (fewer than {MIN_DECILE_N}) to plot reliably. Hover any point for the exact rate and count.</span>',
         unsafe_allow_html=True,
     )
@@ -713,9 +715,9 @@ st.divider()
 st.subheader("Cancellation Rate by Appointment Type × Utilization Bucket")
 
 if rises_with_workload:
-    st.caption(f"Cancellation rate rises as technician workload increases — most sharply for **{max_type}**.")
+    st.caption(f"Cancellation rate rises as technician workload increases, most sharply for **{max_type}**.")
 else:
-    st.caption(f"Cancellation rate varies by technician workload — highest for **{max_type}** at **{max_bucket}%** workload.")
+    st.caption(f"Cancellation rate varies by technician workload, highest for **{max_type}** at **{max_bucket}%** workload.")
 
 # --- Every cell gets a hover tooltip with its exact rate + sample size -----
 tooltip_text = pd.DataFrame(index=pivot.index, columns=pivot.columns, dtype=object)
@@ -724,7 +726,7 @@ for r in pivot.index:
         n = int(cell_counts.loc[r, c])
         note = f"{pivot.loc[r, c]:.1f}% cancelled ({n} appointments)"
         if r == max_type and c == max_bucket:
-            note += " — highest in the dataset"
+            note += " (highest in the dataset)"
         tooltip_text.loc[r, c] = note
 
 # --- Rename columns to a two-row header ---------------------------------
@@ -810,7 +812,7 @@ insight_bullets = []
 if rises_with_workload:
     insight_bullets.append(
         f"<b>Workload effect:</b> Cancellation rate climbs from {low_rate:.1f}% to {high_rate:.1f}% "
-        f"as technician utilization moves from the lowest to the highest workload band — busier "
+        f"as technician utilization moves from the lowest to the highest workload band. Busier "
         f"periods measurably increase the chance an appointment falls through."
     )
 else:
@@ -820,7 +822,7 @@ else:
     )
 insight_bullets.append(
     f"<b>{max_type} risk:</b> {max_type} appointments are the single riskiest combination in the "
-    f"data, reaching a {max_rate:.1f}% cancellation rate once utilization hits {max_bucket}% — this "
+    f"data, reaching a {max_rate:.1f}% cancellation rate once utilization hits {max_bucket}%. This "
     f"appointment type may need extra scheduling buffer during busy periods."
 )
 insight_bullets.append(
@@ -830,7 +832,7 @@ insight_bullets.append(
 )
 insight_bullets.append(
     f"<b>Bottom line:</b> With {cancellation_rate:.1f}% of all appointments cancelled overall, "
-    f"workload-aware scheduling — capping bookings once utilization crosses roughly 80% — is the "
+    f"workload-aware scheduling (capping bookings once utilization crosses roughly 80%) is the "
     f"most direct lever for cutting lost appointments."
 )
 
@@ -852,20 +854,19 @@ st.markdown(
     "(Tire Rotation, Brake Fluid/Caliper Service, Alignment, Warranty Repair, etc.) are modeled "
     "on real, publicly known aspects of Tesla's service network. Which specific appointments "
     "happened, on which day, at which center, and with what outcome is entirely simulated.\n\n"
-    "Critically, the relationship this dashboard analyzes — cancellation likelihood rising with "
-    "technician utilization — was **intentionally built into the simulation itself** (cancellation "
+    "Critically, the relationship this dashboard analyzes, cancellation likelihood rising with "
+    "technician utilization, was **intentionally built into the simulation itself** (cancellation "
     "probability is generated as a function of utilization). The project's purpose is to practice "
     "detecting, quantifying, and visualizing that kind of operational risk pattern with SQL, pandas, "
-    "and Plotly — **this is not real Tesla data and does not reflect Tesla's actual operations, "
+    "and Plotly. **This is not real Tesla data and does not reflect Tesla's actual operations, "
     "technician performance, or scheduling behavior.**"
 )
 
 
 # --- Footer -----------------------------------------------------------
-# The portfolio link is a placeholder -- swap the href below for the real
-# URL once it exists; until then it's shown as plain (non-clickable) text
-# so it doesn't look like a dead link.
 st.markdown(
-    '<div class="site-footer">Built by Madhushree Patil &nbsp;·&nbsp; [portfolio link]</div>',
+    '<div class="site-footer">Built by Madhushree Patil &nbsp;·&nbsp; '
+    '<a href="https://mpatil2703.github.io/portfolio/" target="_blank" '
+    'rel="noopener noreferrer">Portfolio</a></div>',
     unsafe_allow_html=True,
 )
