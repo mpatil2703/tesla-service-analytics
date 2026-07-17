@@ -231,6 +231,31 @@ st.markdown(
     }}
     .site-footer a {{ color: {CRITICAL}; font-weight: 600; text-decoration: none; }}
     .site-footer a:hover {{ text-decoration: underline; }}
+
+    .section-box {{
+        background: {SURFACE};
+        border: 1px solid {CARD_BORDER};
+        border-left: 4px solid {ACCENT};
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin: 0.3rem 0 1.2rem 0;
+        font-size: 15px;
+        line-height: 1.65;
+        color: {INK};
+    }}
+    .section-box b {{ color: {INK}; }}
+    .section-box.problem-box {{ border-left-color: {CRITICAL}; }}
+    .section-box ul {{ margin: 4px 0 0 0; padding-left: 20px; }}
+    .section-box li {{ margin-bottom: 6px; }}
+    .section-box li:last-child {{ margin-bottom: 0; }}
+
+    .glossary-term {{
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: {INK};
+        margin-bottom: 8px;
+    }}
+    .glossary-term b {{ color: {INK}; }}
     </style>
     """).strip(),
     unsafe_allow_html=True,
@@ -288,6 +313,86 @@ st.markdown(
     'centers are measurably more likely to lose an appointment.</p>',
     unsafe_allow_html=True,
 )
+
+# --- The Problem ---------------------------------------------------------
+# A plain-language framing of the business question, aimed at a viewer who
+# has never seen this dataset and doesn't care about the methodology yet --
+# just "why does this dashboard exist." Placed before any chart so that
+# context, not a number, is the first thing a new reader absorbs.
+st.subheader("The Problem")
+st.markdown(
+    '<div class="section-box problem-box">Every cancelled or rescheduled appointment costs '
+    'Tesla Service Operations technician time, open bays, and a customer who has to come back '
+    'later. This project investigates <b>what drives cancellations and reschedules</b> so that '
+    'the team can spot the conditions that make an appointment likely to fall through, before '
+    'it happens.</div>',
+    unsafe_allow_html=True,
+)
+
+# --- How to Read This Dashboard -------------------------------------------
+# Defines the two metrics that every chart below is built from, in plain
+# language and with a real-world analogy for the less intuitive one
+# (utilization), plus the exact formula so a skeptical reader can verify it.
+st.subheader("How to Read This Dashboard")
+st.markdown(
+    '<div class="section-box">'
+    '<ul>'
+    '<li><b>Cancellation rate</b> — the percentage of booked appointments that ended up '
+    'cancelled instead of completed. A higher number means more appointments are falling '
+    'through.</li>'
+    '<li><b>Technician utilization</b> — how busy, or fully booked, technicians were at a '
+    'service center on a given day, as a percentage. Think of it like a restaurant\'s '
+    'reservation book for the night: 40% means plenty of open tables, 90% means almost every '
+    'slot is taken and there\'s little room to absorb a delay.</li>'
+    '<li><b>The math</b> — cancellation rate = (cancelled appointments ÷ total appointments) '
+    '× 100.</li>'
+    '</ul>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# --- Glossary (collapsed by default) --------------------------------------
+# One-line, jargon-free definitions for every channel and appointment type
+# used elsewhere in the dashboard. Tucked into an expander so it's there
+# for a viewer who needs it without pushing the charts further down the
+# page for everyone else.
+with st.expander("📖 What Do These Terms Mean?"):
+    col_channels, col_types = st.columns(2)
+
+    with col_channels:
+        st.markdown("**Booking Channels**")
+        st.markdown(
+            '<div class="glossary-term"><b>Service Center</b> — you bring your car in and a '
+            'technician works on it there.</div>'
+            '<div class="glossary-term"><b>Mobile Service</b> — a technician comes to you and '
+            'does the repair on-site.</div>'
+            '<div class="glossary-term"><b>Collision Center</b> — specialized repair for '
+            'accident or body damage.</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_types:
+        st.markdown("**Appointment Types**")
+        st.markdown(
+            '<div class="glossary-term"><b>Tire Rotation</b> — moving each tire to a different '
+            'position on the car so they wear evenly.</div>'
+            '<div class="glossary-term"><b>Brake Fluid/Caliper Service</b> — maintaining the '
+            'fluid and hardware that make the brakes stop the car.</div>'
+            '<div class="glossary-term"><b>Cabin/HEPA Filter Replacement</b> — swapping the air '
+            'filter that cleans the air coming into the cabin.</div>'
+            '<div class="glossary-term"><b>12V Battery Service</b> — servicing the small '
+            'battery that runs electronics and accessories, separate from the main drive '
+            'battery.</div>'
+            '<div class="glossary-term"><b>Warranty Repair</b> — fixing a covered defect or '
+            'issue at no cost under Tesla\'s warranty.</div>'
+            '<div class="glossary-term"><b>Collision Repair</b> — repairing body damage from an '
+            'accident.</div>'
+            '<div class="glossary-term"><b>Alignment</b> — adjusting the wheels so the car '
+            'drives straight and tires wear evenly.</div>',
+            unsafe_allow_html=True,
+        )
+
+st.divider()
 
 # --- Sidebar filters ---------------------------------------------------
 # st.sidebar puts a widget in the collapsible left-hand panel instead of
